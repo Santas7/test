@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pin Code Input</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #74ebd5, #9face6);
+            color: #333;
+        }
+        .screen {
+            display: none;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 400px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        .screen.active {
+            display: block;
+            opacity: 1;
+        }
+        .pin-display {
+            font-size: 2em;
+            letter-spacing: 0.5em;
+            margin-bottom: 20px;
+            color: #555;
+        }
+        .keyboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .keyboard button {
+            font-size: 1.5em;
+            padding: 15px;
+            background: #74ebd5;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        .keyboard button:hover {
+            background: #9face6;
+        }
+        .keyboard button:active {
+            background: #74ebd5;
+            transform: scale(0.95);
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #ccc;
+            border-top: 5px solid #74ebd5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        h1 {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .attempts {
+            margin-bottom: 10px;
+            font-size: 1em;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <!-- PIN Input Screen -->
+    <div id="pin-screen" class="screen active">
+        <h1>Введите ваш PIN-код</h1>
+        <div id="attempts-remaining" class="attempts">Осталось попыток: 3</div>
+        <div class="pin-display" id="pin-display">______</div>
+        <div class="keyboard">
+            <button onclick="enterDigit(1)">1</button>
+            <button onclick="enterDigit(2)">2</button>
+            <button onclick="enterDigit(3)">3</button>
+            <button onclick="enterDigit(4)">4</button>
+            <button onclick="enterDigit(5)">5</button>
+            <button onclick="enterDigit(6)">6</button>
+            <button onclick="enterDigit(7)">7</button>
+            <button onclick="enterDigit(8)">8</button>
+            <button onclick="enterDigit(9)">9</button>
+            <button onclick="deleteLastDigit()">←</button>
+            <button onclick="enterDigit(0)">0</button>
+            <button onclick="submitPin()">OK</button>
+        </div>
+    </div>
+
+    <!-- Order Ready Screen -->
+    <div id="success-screen" class="screen">
+        <h1>Получите ваш заказ</h1>
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Error Screen -->
+    <div id="error-screen" class="screen">
+        <h1 id="error-message">Неверный Pin</h1>
+    </div>
+
+    <script>
+        const validPins = ["123456", "234567", "345678", "456789"];
+        let pin = "";
+        let attempts = 0;
+        let blocked = false;
+
+        window.onload = () => {
+            const savedAttempts = localStorage.getItem('attempts');
+            const savedBlocked = localStorage.getItem('blockedUntil');
+            if (savedAttempts) attempts = parseInt(savedAttempts, 10);
+            if (savedBlocked && new Date(savedBlocked) > new Date()) {
+                blocked = true;
+                const remainingTime = Math.ceil((new Date(savedBlocked) - new Date()) / 1000);
+                blockScreen(remainingTime);
+            }
+            updateAttemptsDisplay();
+            updatePinDisplay();
+        };
+
+        function enterDigit(digit) {
+            if (blocked || pin.length >= 6) return;
+            pin += digit;
+            updatePinDisplay();
+        }
+
+        function deleteLastDigit() {
+            if (blocked || pin.length === 0) return;
+            pin = pin.slice(0, -1);
+            updatePinDisplay();
+        }
+
+        function clearPin() {
+            if (blocked) return;
+            pin = "";
+            updatePinDisplay();
+        }
+
+        function updatePinDisplay() {
+            const display = document.getElementById("pin-display");
+            display.textContent = pin.padEnd(6, "_");
+        }
+
+        function updateAttemptsDisplay() {
+            const remaining = 3 - attempts;
+            document.getElementById("attempts-remaining").textContent = `Осталось попыток: ${remaining}`;
+        }
+
+        function submitPin() {
+            if (blocked || pin.length < 6) return;
+
+            if (validPins.includes(pin)) {
+                showScreen("success-screen");
+                setTimeout(() => {
+                    resetToPinScreen();
+                }, 30000);
+            } else {
+                attempts++;
+                localStorage.setItem('attempts', attempts);
+                updateAttemptsDisplay();
+                if (attempts >= 3) {
+                    blockScreen();
+                } else {
+                    showError("Неверный Pin");
+                }
+            }
+
+            pin = "";
+            updatePinDisplay();
+        }
+
+        function showError(message) {
+            document.getElementById("error-message").textContent = message;
+            showScreen("error-screen");
+            setTimeout(() => {
+                resetToPinScreen();
+            }, 3000);
+        }
+
+        function blockScreen(remainingTime = 30) {
+            blocked = true;
+            localStorage.setItem('blockedUntil', new Date(Date.now() + remainingTime * 1000));
+            showError(`Экран заблокирован на ${remainingTime} секунд`);
+
+            const interval = setInterval(() => {
+                remainingTime--;
+                document.getElementById("error-message").textContent = `Экран заблокирован на ${remainingTime} секунд`;
+                if (remainingTime <= 0) {
+                    clearInterval(interval);
+                    blocked = false;
+                    attempts = 0;
+                    localStorage.removeItem('blockedUntil');
+                    localStorage.removeItem('attempts');
+                    resetToPinScreen();
+                }
+            }, 1000);
+        }
+
+        function resetToPinScreen() {
+            showScreen("pin-screen");
+            attempts = 0;
+            updateAttemptsDisplay();
+            pin = "";
+            updatePinDisplay();
+        }
+
+        function showScreen(screenId) {
+            document.querySelectorAll(".screen").forEach(screen => {
+                screen.classList.remove("active");
+            });
+            document.getElementById(screenId).classList.add("active");
+        }
+    </script>
+</body>
+</html> 
